@@ -1,0 +1,9 @@
+{application,erlbuild,
+             [{description,[]},
+              {vsn,"1"},
+              {registered,[]},
+              {applications,[kernel,stdlib]},
+              {mod,{erlbuild_app,[]}},
+              {env,[]},
+              {modules,[code_reloader,erlbuild,erlbuild_app,erlbuild_sup,
+                        svnbootloader]}]}.
