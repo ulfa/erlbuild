@@ -7,9 +7,9 @@
               {env,[
               		{timer_clients, [cc_file_poller]},
               		{svn_dir, ""},
-              		{project_dir, "/Users/ulfangermann/projects/erlang/nitrogen/Quickstart"},
-              		{polling_dir, "/Users/ulfangermann/projects/erlang/nitrogen/Quickstart/src"},
-              		{compiler_options, [compile_all, {i, "./include"}, {i, "../apps"}, {i, "../apps/nitrogen/include"}, {outdir, "./ebin"}]},
+              		{project_dir, "."},
+              		{polling_dir, "./src"},
+              		{compiler_options, [compile_all, {i, "./include"}, {outdir, "./ebin"}]},
               		{files_regex, ".*.erl$"},
               		{timer_interval, 1000}
               		]},
