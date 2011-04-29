@@ -119,8 +119,7 @@ make(Files) ->
 	{ok, Compiler_options} = ?PROPERTY(compiler_options),
 	case make:files(Files, Compiler_options) of
 		error -> error_logger:info_msg("ERROR. Now we have to send a mail, but it is not implemented yet! ~n");
-		up_to_date -> error_logger:info_msg("up_to_date"),
-					  code_reloader:reload_modules()
+		up_to_date -> code_reloader:reload_modules()
 	end.
 %% --------------------------------------------------------------------
 %%% 
@@ -137,4 +136,4 @@ change_working_dir_test() ->
 	file:set_cwd(Pwd),
 	?assertEqual(Value, "/private/tmp").
 	
-	
+	  

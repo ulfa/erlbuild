@@ -105,7 +105,7 @@ terminate(_Reason, _State) ->
     ok.
 
 %% --------------------------------------------------------------------
-%% Func: code_change/3
+%% Func: code_change/3   
 %% Purpose: Convert process state when code is changed
 %% Returns: {ok, NewState}
 %% --------------------------------------------------------------------

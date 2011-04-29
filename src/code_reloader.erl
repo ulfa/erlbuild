@@ -154,6 +154,7 @@ is_beamfile(File) ->
 load_module(Module) ->
 	code:purge(Module), 
 	case code:load_file(Module) of
-		{module, Loaded_Module} -> error_logger:info_msg("loaded Module : ~p~n", [Loaded_Module]);
+		{module, Loaded_Module} -> error_logger:info_msg("loaded Module : ~p~n", [Loaded_Module]),
+		Module:test();
 		{error, Reason} -> error_logger:info_msg("can't load Module : ~p with Reason : ~p ~n", [Module, Reason])
 	end.
