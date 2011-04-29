@@ -155,6 +155,13 @@ load_module(Module) ->
 	code:purge(Module), 
 	case code:load_file(Module) of
 		{module, Loaded_Module} -> error_logger:info_msg("loaded Module : ~p~n", [Loaded_Module]),
-		Module:test();
+		run_test(Module);
 		{error, Reason} -> error_logger:info_msg("can't load Module : ~p with Reason : ~p ~n", [Module, Reason])
 	end.
+
+run_test(Module) ->
+	case lists:keyfind(test,1,Module:module_info(exports)) of
+		false -> [];
+		{test, 0} -> Module:test();
+		_ -> []
+	end. 

@@ -129,11 +129,3 @@ change_working_dir(Project_dir) ->
 %% --------------------------------------------------------------------
 %%% Test functions
 %% --------------------------------------------------------------------
-change_working_dir_test() ->
-	{ok,Pwd} = file:get_cwd(),
-	change_working_dir("/private/tmp"),
-	{ok, Value} = file:get_cwd(),
-	file:set_cwd(Pwd),
-	?assertEqual(Value, "/private/tmp").
-	
-	  
