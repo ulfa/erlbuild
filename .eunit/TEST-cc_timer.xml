@@ -1,7 +1,0 @@
-<?xml version="1.0" encoding="UTF-8" ?>
-<testsuite tests="4" failures="0" errors="0" skipped="0" time="0.017" name="module 'cc_timer'">
-  <testcase time="0.000" name="cc_timer:get_timer_with_configured_value_test/0_0"/>
-  <testcase time="0.000" name="cc_timer:get_timer_with_no_configured_value_test/0_0"/>
-  <testcase time="0.005" name="cc_timer:get_timer_clients_with_configured_value_test/0_0"/>
-  <testcase time="0.000" name="cc_timer:get_timer_clients_with_no_configured_value_test/0_0"/>
-</testsuite>
