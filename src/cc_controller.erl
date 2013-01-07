@@ -72,10 +72,14 @@ handle_call(_Request, _From, State) ->
 %%          {stop, Reason, State}            (terminate/2 is called)
 %% --------------------------------------------------------------------
 handle_cast({process_files, src, List_of_files}, State) ->
-	?DEBUG(List_of_files),
-	make(List_of_files),
+	compile(src, List_of_files),
+	code_reloader:reload_modules(),
+    {noreply, State};
+handle_cast({process_files, dtl, List_of_files}, State) ->
+	compile(dtl, List_of_files),
 	code_reloader:reload_modules(),
     {noreply, State}.
+
 %% --------------------------------------------------------------------
 %% Function: handle_info/2
 %% Description: Handling all non call/cast messages
@@ -108,22 +112,32 @@ get_compiler_options() ->
 		{ok, Value} -> Value;
 		undefined -> []
 	end.
+get_erlydtl_options() ->
+	case erlbuild:get_env(erlydtl_options) of
+		{ok, Value} -> Value;
+		undefined -> []
+	end.
 %% --------------------------------------------------------------------
 %% Func: make/0
 %% Purpose: 
 %% Returns: 
 %% --------------------------------------------------------------------
-make(Files) ->
+compile(src, Files) ->
 	?DEBUG(Files),	
 	Options = get_compiler_options(),
-	[compile(F, Options) || F <- Files].
-
-compile([], Options) ->
+	[compile(src, F, Options) || F <- Files];
+compile(dtl, Files) ->
+	?DEBUG(Files),	
+	Options = get_erlydtl_options(),
+	?DEBUG(Options),	
+	[compile(dtl, F, Options) || F <- Files].
+	
+compile(src, [], _Options) ->
 	?DEBUG("nothing to do");	
-compile(File, Options) ->
+compile(src, File, Options) ->
 	?DEBUG(File),
 	case compile:file(File, [return|Options]) of
-		{ok, Module, Warnings} ->
+		{ok, _Module, Warnings} ->
 			%% Compiling didn't change the beam code. Don't reload...
 			print_results([], File, [], Warnings),
 			code_reloader:reload_modules(),
@@ -132,7 +146,11 @@ compile(File, Options) ->
 			%% Compiling failed. Print the warnings and errors...
 			print_results([], File, Errors, Warnings),
 			{ok, Errors, Warnings}
-	end.
+	end;
+compile(dtl, [], _Options) ->
+	?DEBUG("nothing to do");		
+compile(dtl, File, Options) ->
+	erlydtl:compile("./templates", filename:basename(File), Options).	
 	
 print_results(_Module, _SrcFile, [], []) ->
     %% Do not print message on successful compilation;

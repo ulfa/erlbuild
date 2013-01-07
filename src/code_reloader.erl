@@ -114,7 +114,6 @@ code_change(_OldVsn, State, _Extra) ->
 %% Returns: 
 %% --------------------------------------------------------------------
 reloadmodules() ->
-	?DEBUG("reload"),
 	[load_module(Module) || {Module, File} <- code:all_loaded(), is_not_system_module(Module), is_beamfile(File), is_old(Module,File)].
 %% --------------------------------------------------------------------
 %% Func: 

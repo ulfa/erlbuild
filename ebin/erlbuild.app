@@ -7,6 +7,7 @@
               {env,[{timer_clients,[cc_file_poller]},
                     {svn_dir,[]},
                     {compiler_options,[{i,"./include"},{outdir,"./ebin"}]},
+                    {erlydtl_options,[{out_dir,"./ebin"}]},
                     {timer_interval,2000}]},
-              {modules,[cc_controller,cc_file_poller,cc_timer,code_reloader,
-                        erlbuild,svnbootloader]}]}.
+              {modules,[base_dtl,cc_controller,cc_file_poller,cc_timer,
+                        code_reloader,erlbuild,svnbootloader]}]}.
