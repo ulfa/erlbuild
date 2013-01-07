@@ -1,5 +1,5 @@
 %%% -------------------------------------------------------------------
-%%% Author  : Ulf Angermann uangermann@googlemail.com
+%%% Author  : Ulf Angermann uaforum1@googlemail.com'
 %%% Description :
 %%%
 %%% Created : 
@@ -7,12 +7,11 @@
 -module(code_reloader).
 
 -behaviour(gen_server).
--author('uangermann@googlemail.com').
--vsn(1.0).
+-author('uaforum1@googlemail.com').
 %% --------------------------------------------------------------------
 %% Include files
 %% --------------------------------------------------------------------
--include_lib("eunit/include/eunit.hrl").
+
 %% --------------------------------------------------------------------
 %% External exports
 -export([reload_modules/0]).
@@ -20,7 +19,11 @@
 -export([time_triggered/1]).
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
--export([start_link/0]).
+-export([start_link/0, is_not_system_module/1]).
+
+-define(DEBUG(Var), io:format("DEBUG: ~p:~p - ~p~n ~p~n~n", [?MODULE, ?LINE, ??Var, Var])).
+-define(DEBUG(Var, Var1), io:format("DEBUG: ~p:~p - ~p~n ~p~n ~p~n~n", [?MODULE, ?LINE, ??Var, Var, Var1])).
+
 -record(state, {}).
 %% ====================================================================
 %% External functions
@@ -70,8 +73,7 @@ handle_call(_Request, _From, State) ->
 %%          {noreply, State, Timeout} |
 %%          {stop, Reason, State}            (terminate/2 is called)
 %% --------------------------------------------------------------------
-handle_cast({reload, Revision}, State) ->
-	error_logger:info_msg("load new Modules for : ~p~n", [Revision]),
+handle_cast({reload, _Revision}, State) ->	
 	reloadmodules(),
     {noreply, State};
 handle_cast({time_triggered, []}, State) ->
@@ -112,13 +114,15 @@ code_change(_OldVsn, State, _Extra) ->
 %% Returns: 
 %% --------------------------------------------------------------------
 reloadmodules() ->
-	[load_module(Module) || {Module, File} <- code:all_loaded(), is_beamfile(File), is_old(Module,File)].
+	?DEBUG("reload"),
+	[load_module(Module) || {Module, File} <- code:all_loaded(), is_not_system_module(Module), is_beamfile(File), is_old(Module,File)].
 %% --------------------------------------------------------------------
 %% Func: 
 %% Purpose: 
 %% Returns: 
 %% --------------------------------------------------------------------
 is_old(Module,File) ->
+	%%?DEBUG(File),
 	loaded_time(Module) < not_yet_loaded_time(File).
 %% --------------------------------------------------------------------
 %% Func: loaded_time/1
@@ -127,6 +131,7 @@ is_old(Module,File) ->
 %% Returns: {yyyy,mm,dd,hh,mm,sec}
 %% --------------------------------------------------------------------
 loaded_time(Module) ->
+	%%?DEBUG(Module),
 	proplists:get_value(time, Module:module_info(compile)).
 %% --------------------------------------------------------------------
 %% Func: not_yet_load_time/1
@@ -135,6 +140,7 @@ loaded_time(Module) ->
 %% Returns: {yyyy,mm,dd,hh,mm,sec}
 %% --------------------------------------------------------------------
 not_yet_loaded_time(File) ->
+	%%?DEBUG(File),
 	{ok,{_,[{_,I}]}} = beam_lib:chunks(File,[compile_info]),
 	proplists:get_value(time,I).
 %% --------------------------------------------------------------------
@@ -145,6 +151,7 @@ not_yet_loaded_time(File) ->
 %% Returns: true | false
 %% --------------------------------------------------------------------
 is_beamfile(File) ->
+	%%?DEBUG(File),
 	ok =:= element(1,file:read_file_info(File)) andalso ".beam" =:= filename:extension(File).
 %% --------------------------------------------------------------------
 %% Func: load_module
@@ -152,16 +159,72 @@ is_beamfile(File) ->
 %% Returns: 
 %% --------------------------------------------------------------------
 load_module(Module) ->
+	?DEBUG(Module),
 	code:purge(Module), 
 	case code:load_file(Module) of
-		{module, Loaded_Module} -> error_logger:info_msg("loaded Module : ~p~n", [Loaded_Module]),
+		{module, Loaded_Module} -> ?DEBUG("loaded Module :", Loaded_Module),
 		run_test(Module);
 		{error, Reason} -> error_logger:info_msg("can't load Module : ~p with Reason : ~p ~n", [Module, Reason])
 	end.
 
 run_test(Module) ->
-	case lists:keyfind(test,1,Module:module_info(exports)) of
+	case lists:keyfind(test, 1, Module:module_info(exports)) of
 		false -> [];
 		{test, 0} -> Module:test();
 		_ -> []
 	end. 
+
+
+is_not_system_module(Module) ->
+	[] =:= [X || X <- get_system_modules(), X =:= Module].
+get_system_modules() ->
+		[
+        appmon,
+        asn1,
+        common_test,
+        compiler,
+        crypto,
+        debugger,
+        dialyzer,
+        docbuilder,
+        edoc,
+        erl_interface,
+        erts,
+        et,
+        eunit,
+        gs,
+        hipe,
+        inets,
+        inets,
+        inviso,
+        jinterface,
+        kernel,
+        mnesia,
+        observer,
+        orber,
+        os_mon,
+        parsetools,
+        percept,
+        pman,
+        reltool,
+        runtime_tools,
+        sasl,
+        snmp,
+        ssl,
+        stdlib,
+        syntax_tools,
+        test_server,
+        toolbar,
+        tools,
+        tv,
+        webtool,
+        wx,
+        xmerl,
+        zlib
+    ].
+%% --------------------------------------------------------------------
+%%% Test functions
+%% --------------------------------------------------------------------
+-include_lib("eunit/include/eunit.hrl").
+-ifdef(TEST).
+-endif.	

@@ -1,34 +1,35 @@
 %%% -------------------------------------------------------------------
-%%% Author  : Ulf Angermann uaforum1@googlemail.com'
-%%% Description :
-%%%
-%%% Created : 
+%%% Author  : uaforum1@googlemail.com'
+%%% Description : This modules implements a kind of timer which 
+%%% sends message to the clients which are described in the erlbuild.app
+%%% file.
+%%% The clients has to implement the function time_triggered/1
+%%% Created : 29.10.2010 
 %%% -------------------------------------------------------------------
--module(cc_controller).
+-module(cc_timer).
 
 -behaviour(gen_server).
 -author('uaforum1@googlemail.com').
 %% --------------------------------------------------------------------
 %% Include files
 %% --------------------------------------------------------------------
-
+-include_lib("eunit/include/eunit.hrl").
 %% --------------------------------------------------------------------
 %% External exports
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
--export([start_link/0, start/0]).
+-export([start_link/0]).
+-export([start/0, get_timer/0]).
 
--export([process_files/2]).
+-define(DEBUG(Var), io:format("DEBUG: ~p:~p - ~p~n~n ~p~n~n", [?MODULE, ?LINE, ??Var, Var])).
+
 -record(state, {}).
--define(DEBUG(Var), io:format("DEBUG: ~p:~p - ~p~n ~p~n~n", [?MODULE, ?LINE, ??Var, Var])).
+
 %% ====================================================================
 %% External functions
 %% ====================================================================
-process_files(src, Files) ->
-	gen_server:cast(?MODULE, {process_files, src, Files});
-process_files(dtl, Files) ->
-	gen_server:cast(?MODULE, {process_files, dtl, Files}).
+
 %% ====================================================================
 %% Server functions
 %% ====================================================================
@@ -38,8 +39,11 @@ process_files(dtl, Files) ->
 %%--------------------------------------------------------------------
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+
 start() ->
+	application:load(erlbuild),
 	start_link().
+
 %% --------------------------------------------------------------------
 %% Function: init/1
 %% Description: Initiates the server
@@ -49,7 +53,8 @@ start() ->
 %%          {stop, Reason}
 %% --------------------------------------------------------------------
 init([]) ->
-    {ok, #state{}}.
+    {ok, #state{}, 0}.
+
 %% --------------------------------------------------------------------
 %% Function: handle_call/3
 %% Description: Handling call messages
@@ -71,11 +76,9 @@ handle_call(_Request, _From, State) ->
 %%          {noreply, State, Timeout} |
 %%          {stop, Reason, State}            (terminate/2 is called)
 %% --------------------------------------------------------------------
-handle_cast({process_files, src, List_of_files}, State) ->
-	?DEBUG(List_of_files),
-	make(List_of_files),
-	code_reloader:reload_modules(),
+handle_cast(_Msg, State) ->
     {noreply, State}.
+
 %% --------------------------------------------------------------------
 %% Function: handle_info/2
 %% Description: Handling all non call/cast messages
@@ -83,6 +86,15 @@ handle_cast({process_files, src, List_of_files}, State) ->
 %%          {noreply, State, Timeout} |
 %%          {stop, Reason, State}            (terminate/2 is called)
 %% --------------------------------------------------------------------
+handle_info(timeout, State) ->
+	?DEBUG("...Timeout"),
+	handle_info({next_run}, State);
+handle_info({next_run}, State) ->
+	?DEBUG("...Next Run"),
+	List_of_clients = get_timer_clients(),
+	send_msg_to_clients(List_of_clients),
+	start_timer(),
+    {noreply, State};
 handle_info(_Info, State) ->
     {noreply, State}.
 
@@ -93,6 +105,7 @@ handle_info(_Info, State) ->
 %% --------------------------------------------------------------------
 terminate(_Reason, _State) ->
     ok.
+
 %% --------------------------------------------------------------------
 %% Func: code_change/3
 %% Purpose: Convert process state when code is changed
@@ -100,71 +113,45 @@ terminate(_Reason, _State) ->
 %% --------------------------------------------------------------------
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
+
 %% --------------------------------------------------------------------
 %%% Internal functions
 %% --------------------------------------------------------------------
-get_compiler_options() ->
-	case erlbuild:get_env(compiler_options) of
+get_timer() ->
+	case erlbuild:get_env(timer_interval) of
 		{ok, Value} -> Value;
-		undefined -> []
+		undefined -> error_logger:warning_msg("There is noch timer_interval configured. Please, have a look at your erlbuild.app"),
+					10000
 	end.
-%% --------------------------------------------------------------------
-%% Func: make/0
-%% Purpose: 
-%% Returns: 
-%% --------------------------------------------------------------------
-make(Files) ->
-	?DEBUG(Files),	
-	Options = get_compiler_options(),
-	[compile(F, Options) || F <- Files].
-
-compile([], Options) ->
-	?DEBUG("nothing to do");	
-compile(File, Options) ->
-	?DEBUG(File),
-	case compile:file(File, [return|Options]) of
-		{ok, Module, Warnings} ->
-			%% Compiling didn't change the beam code. Don't reload...
-			print_results([], File, [], Warnings),
-			code_reloader:reload_modules(),
-			{ok, [], Warnings};
-		{error, Errors, Warnings} ->
-			%% Compiling failed. Print the warnings and errors...
-			print_results([], File, Errors, Warnings),
-			{ok, Errors, Warnings}
+get_timer_clients() ->
+	case erlbuild:get_env(timer_clients) of
+		{ok, Value} -> Value;
+		undefined -> error_logger:warning_msg("There are no timer_clients configured. Please, have a look at your erlbuild.app"),
+					 []
 	end.
-	
-print_results(_Module, _SrcFile, [], []) ->
-    %% Do not print message on successful compilation;
-    %% We already get a notification when the beam is reloaded.
-    ok;
-
-print_results(_Module, SrcFile, [], Warnings) ->
-    Msg = [
-        format_errors(SrcFile, [], Warnings),
-        io_lib:format("~s:0: Recompiled with ~p warnings~n", [SrcFile, length(Warnings)])
-    ],
-    error_logger:info_msg(lists:flatten(Msg));
-
-print_results(_Module, SrcFile, Errors, Warnings) ->
-    Msg = [
-        format_errors(SrcFile, Errors, Warnings)
-    ],
-    error_logger:info_msg(lists:flatten(Msg)).
-
-
-%% @private Print error messages in a pretty and user readable way.
-format_errors(File, Errors, Warnings) ->
-    AllErrors1 = lists:sort(lists:flatten([X || {_, X} <- Errors])),
-    AllErrors2 = [{Line, "Error", Module, Description} || {Line, Module, Description} <- AllErrors1],
-    AllWarnings1 = lists:sort(lists:flatten([X || {_, X} <- Warnings])),
-    AllWarnings2 = [{Line, "Warning", Module, Description} || {Line, Module, Description} <- AllWarnings1],
-    Everything = lists:sort(AllErrors2 ++ AllWarnings2),
-    F = fun({Line, Prefix, Module, ErrorDescription}) ->
-        Msg = Module:format_error(ErrorDescription),
-        io_lib:format("~s:~p: ~s: ~s~n", [File, Line, Prefix, Msg])
-    end,
-    [F(X) || X <- Everything].
+start_timer() ->
+	erlang:send_after(get_timer(), self(), {next_run}).
+send_msg_to_clients(List_of_clients) ->
+	?DEBUG("... send_msg_to_clients"),
+	[send_msg_to_client(Client) || Client <- List_of_clients].
+send_msg_to_client(Client) ->
+	?DEBUG("... send_msg_to_client"),
+	Client:time_triggered([]).
 %% --------------------------------------------------------------------
 %%% Test functions
 %% --------------------------------------------------------------------
+-include_lib("eunit/include/eunit.hrl").
+-ifdef(TEST).
+get_timer_with_configured_value_test() ->
+	application:load(erlbuild),
+	?assertEqual(2000, get_timer()).	
+get_timer_with_no_configured_value_test() ->	
+	application:unload(erlbuild),
+	?assertEqual(10000, get_timer()).	
+get_timer_clients_with_configured_value_test() ->	
+	application:load(erlbuild),
+	?assertEqual([cc_file_poller], get_timer_clients()).	
+get_timer_clients_with_no_configured_value_test() ->
+	application:unload(erlbuild),		
+	?assertEqual([], get_timer_clients()).	
+-endif.

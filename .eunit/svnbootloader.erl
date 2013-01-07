@@ -1,34 +1,36 @@
 %%% -------------------------------------------------------------------
-%%% Author  : Ulf Angermann uaforum1@googlemail.com'
+%%% Author  : ua
 %%% Description :
 %%%
-%%% Created : 
+%%% Created : Jan 7, 2010
 %%% -------------------------------------------------------------------
--module(cc_controller).
+-module(svnbootloader).
 
 -behaviour(gen_server).
--author('uaforum1@googlemail.com').
+-author('uangermann@googlemail.com').
+-vsn(1.0).
 %% --------------------------------------------------------------------
 %% Include files
 %% --------------------------------------------------------------------
-
+-include_lib("eunit/include/eunit.hrl").
 %% --------------------------------------------------------------------
 %% External exports
+-export([update/0]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
--export([start_link/0, start/0]).
+-export([start_link/0, run_eunit_test1/0]).
 
--export([process_files/2]).
+
 -record(state, {}).
--define(DEBUG(Var), io:format("DEBUG: ~p:~p - ~p~n ~p~n~n", [?MODULE, ?LINE, ??Var, Var])).
+
+-define(LILLY_DIR, '/Users/ua/projekte/erlang/lilly').
+-define(SVN_UPDATE,'svn update --non-interactive').
 %% ====================================================================
 %% External functions
 %% ====================================================================
-process_files(src, Files) ->
-	gen_server:cast(?MODULE, {process_files, src, Files});
-process_files(dtl, Files) ->
-	gen_server:cast(?MODULE, {process_files, dtl, Files}).
+update() ->
+	gen_server:call(?MODULE, {update}).
 %% ====================================================================
 %% Server functions
 %% ====================================================================
@@ -38,8 +40,6 @@ process_files(dtl, Files) ->
 %%--------------------------------------------------------------------
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
-start() ->
-	start_link().
 %% --------------------------------------------------------------------
 %% Function: init/1
 %% Description: Initiates the server
@@ -49,7 +49,26 @@ start() ->
 %%          {stop, Reason}
 %% --------------------------------------------------------------------
 init([]) ->
-    {ok, #state{}}.
+	start_timer(),	
+	case file:set_cwd(get_build_dir()) of
+		ok -> {ok, #state{}} ; 
+    	{error,Reason} -> {error,Reason}
+	end.
+
+get_build_dir() ->
+	{ok, Value} = application:get_env(erlbuild, build_dir),
+	io:format("Build_dir : ~p ~n" , [Value]),
+	Value.
+
+%% timer nach 1 Minuten
+start_timer() ->
+	erlang:send_after(get_timer() * 60 * 1000, self(), timeout).
+
+get_timer() ->
+	{ok, Value} = application:get_env(erlbuild, timer),
+	%%io:format("time to next run : ~p minutes~n" , [Value]),
+	Value.
+	
 %% --------------------------------------------------------------------
 %% Function: handle_call/3
 %% Description: Handling call messages
@@ -60,7 +79,8 @@ init([]) ->
 %%          {stop, Reason, Reply, State}   | (terminate/2 is called)
 %%          {stop, Reason, State}            (terminate/2 is called)
 %% --------------------------------------------------------------------
-handle_call(_Request, _From, State) ->
+handle_call({update}, From, State) ->
+	svn_update(),
     Reply = ok,
     {reply, Reply, State}.
 
@@ -71,11 +91,9 @@ handle_call(_Request, _From, State) ->
 %%          {noreply, State, Timeout} |
 %%          {stop, Reason, State}            (terminate/2 is called)
 %% --------------------------------------------------------------------
-handle_cast({process_files, src, List_of_files}, State) ->
-	?DEBUG(List_of_files),
-	make(List_of_files),
-	code_reloader:reload_modules(),
+handle_cast(Msg, State) ->
     {noreply, State}.
+
 %% --------------------------------------------------------------------
 %% Function: handle_info/2
 %% Description: Handling all non call/cast messages
@@ -83,88 +101,104 @@ handle_cast({process_files, src, List_of_files}, State) ->
 %%          {noreply, State, Timeout} |
 %%          {stop, Reason, State}            (terminate/2 is called)
 %% --------------------------------------------------------------------
-handle_info(_Info, State) ->
+handle_info(timeout, State) ->
+	svn_update(),
+	start_timer(),
     {noreply, State}.
+
 
 %% --------------------------------------------------------------------
 %% Function: terminate/2
 %% Description: Shutdown the server
 %% Returns: any (ignored by gen_server)
 %% --------------------------------------------------------------------
-terminate(_Reason, _State) ->
+terminate(Reason, State) ->
     ok.
+
 %% --------------------------------------------------------------------
 %% Func: code_change/3
 %% Purpose: Convert process state when code is changed
 %% Returns: {ok, NewState}
 %% --------------------------------------------------------------------
-code_change(_OldVsn, State, _Extra) ->
+code_change(OldVsn, State, Extra) ->
     {ok, State}.
+
 %% --------------------------------------------------------------------
 %%% Internal functions
 %% --------------------------------------------------------------------
-get_compiler_options() ->
-	case erlbuild:get_env(compiler_options) of
-		{ok, Value} -> Value;
-		undefined -> []
+%% --------------------------------------------------------------------
+%% Func: svn_update/0
+%% Purpose: 
+%% Returns: 
+%% --------------------------------------------------------------------
+svn_update() ->
+	Update_Out = os:cmd(?SVN_UPDATE),
+	case check_svn_result(Update_Out) of
+		build -> make(get_revision(Update_Out)),
+				 run_eunit(Update_Out);
+		_	  -> ok %%io:format("no build needed~n")
 	end.
+%% --------------------------------------------------------------------
+%% Func: check_svn_result/1
+%% Purpose: 
+%% Returns: 
+%% --------------------------------------------------------------------
+check_svn_result(Svn_Result) ->
+	Liste = string:tokens(Svn_Result, "\n"),
+	case erlang:length(Liste) of
+		1 -> no_build;
+		_ -> build
+	end.
+%% --------------------------------------------------------------------
+%% Func: check_svn_result/1
+%% Purpose: 
+%% Returns: 
+%% --------------------------------------------------------------------
+get_revision(Svn_Result) ->
+	Svn_result = string:to_lower(Svn_Result),
+	Start = string:str(Svn_result, "revision"),
+	Ende  = string:rstr(Svn_result,".\n"),
+	string:substr(Svn_result, Start, (Ende - Start)).
 %% --------------------------------------------------------------------
 %% Func: make/0
 %% Purpose: 
 %% Returns: 
 %% --------------------------------------------------------------------
-make(Files) ->
-	?DEBUG(Files),	
-	Options = get_compiler_options(),
-	[compile(F, Options) || F <- Files].
-
-compile([], Options) ->
-	?DEBUG("nothing to do");	
-compile(File, Options) ->
-	?DEBUG(File),
-	case compile:file(File, [return|Options]) of
-		{ok, Module, Warnings} ->
-			%% Compiling didn't change the beam code. Don't reload...
-			print_results([], File, [], Warnings),
-			code_reloader:reload_modules(),
-			{ok, [], Warnings};
-		{error, Errors, Warnings} ->
-			%% Compiling failed. Print the warnings and errors...
-			print_results([], File, Errors, Warnings),
-			{ok, Errors, Warnings}
+make(Revision) ->
+	case make:all() of 
+		error -> io:format("ERROR. Now we have to send a mail, but it is not implemented yet! ~n");
+		_ -> trigger_code_reloading(Revision)
 	end.
+%% --------------------------------------------------------------------
+%% Func: run_eunit/1
+%% Purpose: 
+%% Returns: 
+%% --------------------------------------------------------------------
+run_eunit(Svn_Result) ->
+	%%io:format("1. run_eunit ~p~n", [Svn_Result]),
+	Liste = string:tokens(Svn_Result, "\n"),
+	Liste1 = lists:delete(lists:last(Liste), Liste),
 	
-print_results(_Module, _SrcFile, [], []) ->
-    %% Do not print message on successful compilation;
-    %% We already get a notification when the beam is reloaded.
-    ok;
-
-print_results(_Module, SrcFile, [], Warnings) ->
-    Msg = [
-        format_errors(SrcFile, [], Warnings),
-        io_lib:format("~s:0: Recompiled with ~p warnings~n", [SrcFile, length(Warnings)])
-    ],
-    error_logger:info_msg(lists:flatten(Msg));
-
-print_results(_Module, SrcFile, Errors, Warnings) ->
-    Msg = [
-        format_errors(SrcFile, Errors, Warnings)
-    ],
-    error_logger:info_msg(lists:flatten(Msg)).
-
-
-%% @private Print error messages in a pretty and user readable way.
-format_errors(File, Errors, Warnings) ->
-    AllErrors1 = lists:sort(lists:flatten([X || {_, X} <- Errors])),
-    AllErrors2 = [{Line, "Error", Module, Description} || {Line, Module, Description} <- AllErrors1],
-    AllWarnings1 = lists:sort(lists:flatten([X || {_, X} <- Warnings])),
-    AllWarnings2 = [{Line, "Warning", Module, Description} || {Line, Module, Description} <- AllWarnings1],
-    Everything = lists:sort(AllErrors2 ++ AllWarnings2),
-    F = fun({Line, Prefix, Module, ErrorDescription}) ->
-        Msg = Module:format_error(ErrorDescription),
-        io_lib:format("~s:~p: ~s: ~s~n", [File, Line, Prefix, Msg])
-    end,
-    [F(X) || X <- Everything].
+	io:format("2. run_eunit ~p~n", [Liste1]).
 %% --------------------------------------------------------------------
-%%% Test functions
+%% Func: trigger_code_reloading/0
+%% Purpose: 
+%% Returns: 
 %% --------------------------------------------------------------------
+trigger_code_reloading(Revision) ->
+	io:format("send message to code_reloader for : ~p~n", [Revision]),
+	code_reloader:reload_modules(Revision),
+	ok.
+%%
+%% Test Functions
+%%
+get_revision_test() ->
+	?assertEqual("revision 182", get_revision("U    src/svnbootloader.erl\nUpdated to Revision 182.\n")),
+	?assertEqual("revision 182", get_revision("U    src/svnbootloader.erl\nUpdated to revision 182.\n")).
+
+run_eunit_test1() ->
+	run_eunit("U    src/svnbootloader.erl\nUpdated to revision 182.\n"),
+	A = ["U    src/svnbootloader.erl", "Updated to revision 182."].
+
+	
+

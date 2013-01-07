@@ -1,1 +1,0 @@
--define(PROPERTY(Field), application:get_env(erlbuild, Field)).

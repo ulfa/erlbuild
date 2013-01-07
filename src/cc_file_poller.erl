@@ -6,14 +6,12 @@
 %%% -------------------------------------------------------------------
 -module(cc_file_poller).
 
-
 -behaviour(gen_server).
+-author('uaforum1@googlemail.com').
 %% --------------------------------------------------------------------
 %% Include files
 %% --------------------------------------------------------------------
--include_lib("eunit/include/eunit.hrl").
 -include_lib("kernel/include/file.hrl").
--include("../include/erlbuild.hrl").
 %% --------------------------------------------------------------------
 %% External exports
 %% cc_timer interface which has to implemented by the timer clients
@@ -23,13 +21,15 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 -export([start_link/0]).
 -export([start/0]).
+
+-define(DEBUG(Var), io:format("DEBUG: ~p:~p - ~p~n~n ~p~n~n", [?MODULE, ?LINE, ??Var, Var])).
 -record(state, {last_poll_time}).
 
 %% ====================================================================
 %% External functions
 %% ====================================================================
-time_triggered([]) ->
-	gen_server:cast(?MODULE, {time_triggered, []}).
+time_triggered(Args) ->
+	gen_server:cast(?MODULE, {time_triggered, Args}).
 %% ====================================================================
 %% Server functions
 %% ====================================================================
@@ -40,7 +40,6 @@ time_triggered([]) ->
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 start() ->
-	application:load(erlbuild),
 	start_link().
 
 %% --------------------------------------------------------------------
@@ -52,7 +51,7 @@ start() ->
 %%          {stop, Reason}
 %% --------------------------------------------------------------------
 init([]) ->
-    {ok, #state{last_poll_time=new_poll_time(date(), time())}}.
+    {ok, #state{last_poll_time = new_poll_time(date(), time())}}.
 
 %% --------------------------------------------------------------------
 %% Function: handle_call/3
@@ -75,17 +74,11 @@ handle_call(_Request, _From, State) ->
 %%          {noreply, State, Timeout} |
 %%          {stop, Reason, State}            (terminate/2 is called)
 %% --------------------------------------------------------------------
-handle_cast({time_triggered, []}, State) ->
-	%%error_logger:info_msg("cc_file_poller was triggered, ~p~n", [State]),
-	{Directory, Compiled_Regex} = get_parameter(),
-	{Files, NewState} = get_new_files(Directory, Compiled_Regex, State),
-	case erlang:length(Files) of
-		0 -> [];
-		_ -> error_logger:info_msg("modified files found : ~p ~n", [Files]),
-			 send_cc_controller(Files)
-	end,
-	
-    {noreply, NewState}.
+handle_cast({time_triggered, _Args}, State) ->
+	%%?DEBUG("cc_file_poller was triggered"),
+	process_src_files(State),
+	process_dtl_files(State),	
+    {noreply, #state{last_poll_time = new_poll_time(date(), time())}}.
 %% --------------------------------------------------------------------
 %% Function: handle_info/2
 %% Description: Handling all non call/cast messages
@@ -111,45 +104,64 @@ terminate(_Reason, _State) ->
 %% --------------------------------------------------------------------
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
-
 %% --------------------------------------------------------------------
 %%% Internal functions
 %% --------------------------------------------------------------------
+%% --------------------------------------------------------------------
+%% Get all changed files for a given directory.
+%% --------------------------------------------------------------------
 get_new_files(Directory, Compiled_Regex, _State=#state{last_poll_time=Last_poll_time}) ->
-	%%error_logger:info_msg("get files since : ~p~n", [Last_poll_time]),
-    {ok, Files} = file:list_dir(Directory),
-	New_state = #state{last_poll_time=new_poll_time(date(), time())},
+    Files = list_dir(Directory),
     FilteredFiles = lists:map(
-        fun(X) -> filename:join([Directory,X]) end,
+        fun(X) -> filename:join([Directory, X]) end,
         lists:filter(
             fun(Y) ->
                 re:run(Y,Compiled_Regex,[{capture,none}]) == match end,
             Files
         )
     ),
+	
     NewFiles = lists:filter (
         fun(Filename) ->
             {ok, FileInfo} = file:read_file_info(Filename),
             calendar:datetime_to_gregorian_seconds(FileInfo#file_info.mtime) > Last_poll_time
-        end,
+        end,				
         FilteredFiles
     ),				   
-    {NewFiles, New_state}.
-	
-get_parameter() ->
-	{ok, Directory} = ?PROPERTY(polling_dir),
-	{ok, Regex} = ?PROPERTY(files_regex),
+    NewFiles.
+%% --------------------------------------------------------------------
+%% 
+%% --------------------------------------------------------------------
+list_dir(Directory) when is_list(Directory)->
+	list_dir(file:list_dir(Directory));
+list_dir({ok, Files}) ->
+	Files;
+list_dir({error, Reason}) ->
+	error_logger:error_msg(Reason),
+	[].
+%% --------------------------------------------------------------------
+%% 
+%% --------------------------------------------------------------------	
+process_src_files(State) ->
+	Files = get_new_files("./src", get_regex(".*.erl$"), State),
+	send_cc_controller(src, Files).
+process_dtl_files(State) ->
+	Files = get_new_files("./templates", get_regex(".*.dtl$"), State),
+	send_cc_controller(dtl, Files).
+%% --------------------------------------------------------------------
+%% 
+%% --------------------------------------------------------------------	
+get_regex(Regex) ->
 	{ok, Compiled_Regex} = re:compile(Regex),
-	{Directory, Compiled_Regex}.
-
+	Compiled_Regex.	
 %% --------------------------------------------------------------------
-%%
+%% 
 %% --------------------------------------------------------------------
-send_cc_controller([]) ->
+send_cc_controller(_Type,[]) ->
 	ok;
-send_cc_controller(Files) ->
-	cc_controller:process_files(Files).
-
+send_cc_controller(Type, Files) ->
+	?DEBUG(Files),
+	cc_controller:process_files(Type, Files).
 %% --------------------------------------------------------------------
 %%% create new poll time
 %% --------------------------------------------------------------------
@@ -158,3 +170,7 @@ new_poll_time(Date, Time) ->
 %% --------------------------------------------------------------------
 %%% Test functions
 %% --------------------------------------------------------------------
+-include_lib("eunit/include/eunit.hrl").
+-ifdef(TEST).
+
+-endif.

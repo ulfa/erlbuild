@@ -1,34 +1,35 @@
 %%% -------------------------------------------------------------------
-%%% Author  : Ulf Angermann uaforum1@googlemail.com'
+%%% Author  : Ulf uaforum1@googlemail.com
 %%% Description :
 %%%
 %%% Created : 
 %%% -------------------------------------------------------------------
--module(cc_controller).
+-module(cc_file_poller).
 
 -behaviour(gen_server).
 -author('uaforum1@googlemail.com').
 %% --------------------------------------------------------------------
 %% Include files
 %% --------------------------------------------------------------------
-
+-include_lib("kernel/include/file.hrl").
 %% --------------------------------------------------------------------
 %% External exports
+%% cc_timer interface which has to implemented by the timer clients
+-export([time_triggered/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
--export([start_link/0, start/0]).
+-export([start_link/0]).
+-export([start/0]).
 
--export([process_files/2]).
--record(state, {}).
--define(DEBUG(Var), io:format("DEBUG: ~p:~p - ~p~n ~p~n~n", [?MODULE, ?LINE, ??Var, Var])).
+-define(DEBUG(Var), io:format("DEBUG: ~p:~p - ~p~n~n ~p~n~n", [?MODULE, ?LINE, ??Var, Var])).
+-record(state, {last_poll_time}).
+
 %% ====================================================================
 %% External functions
 %% ====================================================================
-process_files(src, Files) ->
-	gen_server:cast(?MODULE, {process_files, src, Files});
-process_files(dtl, Files) ->
-	gen_server:cast(?MODULE, {process_files, dtl, Files}).
+time_triggered(Args) ->
+	gen_server:cast(?MODULE, {time_triggered, Args}).
 %% ====================================================================
 %% Server functions
 %% ====================================================================
@@ -40,6 +41,7 @@ start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 start() ->
 	start_link().
+
 %% --------------------------------------------------------------------
 %% Function: init/1
 %% Description: Initiates the server
@@ -49,7 +51,8 @@ start() ->
 %%          {stop, Reason}
 %% --------------------------------------------------------------------
 init([]) ->
-    {ok, #state{}}.
+    {ok, #state{last_poll_time = new_poll_time(date(), time())}}.
+
 %% --------------------------------------------------------------------
 %% Function: handle_call/3
 %% Description: Handling call messages
@@ -71,11 +74,12 @@ handle_call(_Request, _From, State) ->
 %%          {noreply, State, Timeout} |
 %%          {stop, Reason, State}            (terminate/2 is called)
 %% --------------------------------------------------------------------
-handle_cast({process_files, src, List_of_files}, State) ->
-	?DEBUG(List_of_files),
-	make(List_of_files),
-	code_reloader:reload_modules(),
-    {noreply, State}.
+handle_cast({time_triggered, _Args}, State) ->
+	?DEBUG("cc_file_poller was triggered"),
+	{Directory, Compiled_Regex} = get_parameter(),
+	{Files, NewState} = get_new_files(Directory, Compiled_Regex, State),
+	send_cc_controller(Files),
+    {noreply, NewState}.
 %% --------------------------------------------------------------------
 %% Function: handle_info/2
 %% Description: Handling all non call/cast messages
@@ -93,78 +97,76 @@ handle_info(_Info, State) ->
 %% --------------------------------------------------------------------
 terminate(_Reason, _State) ->
     ok.
+
 %% --------------------------------------------------------------------
-%% Func: code_change/3
+%% Func: code_change/3   
 %% Purpose: Convert process state when code is changed
 %% Returns: {ok, NewState}
 %% --------------------------------------------------------------------
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
+
 %% --------------------------------------------------------------------
 %%% Internal functions
 %% --------------------------------------------------------------------
-get_compiler_options() ->
-	case erlbuild:get_env(compiler_options) of
+get_new_files(Directory, Compiled_Regex, _State=#state{last_poll_time=Last_poll_time}) ->
+
+    {ok, Files} = file:list_dir(Directory),
+	New_state = #state{last_poll_time=new_poll_time(date(), time())},
+    FilteredFiles = lists:map(
+        fun(X) -> filename:join([Directory,X]) end,
+        lists:filter(
+            fun(Y) ->
+                re:run(Y,Compiled_Regex,[{capture,none}]) == match end,
+            Files
+        )
+    ),
+    NewFiles = lists:filter (
+        fun(Filename) ->
+            {ok, FileInfo} = file:read_file_info(Filename),
+            calendar:datetime_to_gregorian_seconds(FileInfo#file_info.mtime) > Last_poll_time
+        end,
+        FilteredFiles
+    ),				   
+    {NewFiles, New_state}.
+	
+get_parameter() ->
+	Directory = get_polling_dir(),
+	Regex = get_files_regex(),
+	{ok, Compiled_Regex} = re:compile(Regex),
+	{Directory, Compiled_Regex}.
+
+get_polling_dir() ->
+	case erlbuild:get_env(polling_dir) of
+		{ok, Value} -> Value;
+		undefined -> []
+	end.
+get_files_regex() ->
+	case erlbuild:get_env(files_regex) of
 		{ok, Value} -> Value;
 		undefined -> []
 	end.
 %% --------------------------------------------------------------------
-%% Func: make/0
-%% Purpose: 
-%% Returns: 
+%%
 %% --------------------------------------------------------------------
-make(Files) ->
-	?DEBUG(Files),	
-	Options = get_compiler_options(),
-	[compile(F, Options) || F <- Files].
+send_cc_controller([]) ->
+	?DEBUG("no files are available for processing");	
+send_cc_controller(Files) ->
+	cc_controller:process_files(Files).
 
-compile([], Options) ->
-	?DEBUG("nothing to do");	
-compile(File, Options) ->
-	?DEBUG(File),
-	case compile:file(File, [return|Options]) of
-		{ok, Module, Warnings} ->
-			%% Compiling didn't change the beam code. Don't reload...
-			print_results([], File, [], Warnings),
-			code_reloader:reload_modules(),
-			{ok, [], Warnings};
-		{error, Errors, Warnings} ->
-			%% Compiling failed. Print the warnings and errors...
-			print_results([], File, Errors, Warnings),
-			{ok, Errors, Warnings}
-	end.
-	
-print_results(_Module, _SrcFile, [], []) ->
-    %% Do not print message on successful compilation;
-    %% We already get a notification when the beam is reloaded.
-    ok;
-
-print_results(_Module, SrcFile, [], Warnings) ->
-    Msg = [
-        format_errors(SrcFile, [], Warnings),
-        io_lib:format("~s:0: Recompiled with ~p warnings~n", [SrcFile, length(Warnings)])
-    ],
-    error_logger:info_msg(lists:flatten(Msg));
-
-print_results(_Module, SrcFile, Errors, Warnings) ->
-    Msg = [
-        format_errors(SrcFile, Errors, Warnings)
-    ],
-    error_logger:info_msg(lists:flatten(Msg)).
-
-
-%% @private Print error messages in a pretty and user readable way.
-format_errors(File, Errors, Warnings) ->
-    AllErrors1 = lists:sort(lists:flatten([X || {_, X} <- Errors])),
-    AllErrors2 = [{Line, "Error", Module, Description} || {Line, Module, Description} <- AllErrors1],
-    AllWarnings1 = lists:sort(lists:flatten([X || {_, X} <- Warnings])),
-    AllWarnings2 = [{Line, "Warning", Module, Description} || {Line, Module, Description} <- AllWarnings1],
-    Everything = lists:sort(AllErrors2 ++ AllWarnings2),
-    F = fun({Line, Prefix, Module, ErrorDescription}) ->
-        Msg = Module:format_error(ErrorDescription),
-        io_lib:format("~s:~p: ~s: ~s~n", [File, Line, Prefix, Msg])
-    end,
-    [F(X) || X <- Everything].
+%% --------------------------------------------------------------------
+%%% create new poll time
+%% --------------------------------------------------------------------
+new_poll_time(Date, Time) ->
+	calendar:datetime_to_gregorian_seconds({Date, Time}).
 %% --------------------------------------------------------------------
 %%% Test functions
 %% --------------------------------------------------------------------
+-include_lib("eunit/include/eunit.hrl").
+-ifdef(TEST).
+
+get_parameter_test() ->
+	application:load(erlbuild),
+	?assertMatch({"./src", {re_pattern,0,0,_}}, get_parameter()).
+	
+-endif.

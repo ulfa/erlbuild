@@ -19,16 +19,14 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 -export([start_link/0, start/0]).
 
--export([process_files/2]).
--record(state, {}).
--define(DEBUG(Var), io:format("DEBUG: ~p:~p - ~p~n ~p~n~n", [?MODULE, ?LINE, ??Var, Var])).
+-export([process_files/1]).
+-record(state, {pwd}).
+
 %% ====================================================================
 %% External functions
 %% ====================================================================
-process_files(src, Files) ->
-	gen_server:cast(?MODULE, {process_files, src, Files});
-process_files(dtl, Files) ->
-	gen_server:cast(?MODULE, {process_files, dtl, Files}).
+process_files(List_of_files) ->
+	gen_server:cast(?MODULE, {process_files, List_of_files}).
 %% ====================================================================
 %% Server functions
 %% ====================================================================
@@ -49,7 +47,9 @@ start() ->
 %%          {stop, Reason}
 %% --------------------------------------------------------------------
 init([]) ->
-    {ok, #state{}}.
+	{ok, Pwd} = file:get_cwd(),
+    {ok, #state{pwd=Pwd}}.
+
 %% --------------------------------------------------------------------
 %% Function: handle_call/3
 %% Description: Handling call messages
@@ -71,11 +71,15 @@ handle_call(_Request, _From, State) ->
 %%          {noreply, State, Timeout} |
 %%          {stop, Reason, State}            (terminate/2 is called)
 %% --------------------------------------------------------------------
-handle_cast({process_files, src, List_of_files}, State) ->
-	?DEBUG(List_of_files),
+handle_cast({process_files, List_of_files}, State) ->
+	error_logger:info_msg("processing files : ~n ~p ~n", [List_of_files]),
+	{ok, Project_dir} = get_project_dir(),
+	change_working_dir(Project_dir),
 	make(List_of_files),
+	change_working_dir(State#state.pwd),
 	code_reloader:reload_modules(),
     {noreply, State}.
+
 %% --------------------------------------------------------------------
 %% Function: handle_info/2
 %% Description: Handling all non call/cast messages
@@ -93,6 +97,7 @@ handle_info(_Info, State) ->
 %% --------------------------------------------------------------------
 terminate(_Reason, _State) ->
     ok.
+
 %% --------------------------------------------------------------------
 %% Func: code_change/3
 %% Purpose: Convert process state when code is changed
@@ -100,71 +105,38 @@ terminate(_Reason, _State) ->
 %% --------------------------------------------------------------------
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
+
 %% --------------------------------------------------------------------
 %%% Internal functions
 %% --------------------------------------------------------------------
+get_project_dir() ->
+	case erlbuild:get_env(project_dir) of
+		{ok, Value} -> Value;
+		undefined -> "."
+	end.
 get_compiler_options() ->
 	case erlbuild:get_env(compiler_options) of
 		{ok, Value} -> Value;
 		undefined -> []
 	end.
+	
 %% --------------------------------------------------------------------
 %% Func: make/0
 %% Purpose: 
 %% Returns: 
 %% --------------------------------------------------------------------
 make(Files) ->
-	?DEBUG(Files),	
-	Options = get_compiler_options(),
-	[compile(F, Options) || F <- Files].
-
-compile([], Options) ->
-	?DEBUG("nothing to do");	
-compile(File, Options) ->
-	?DEBUG(File),
-	case compile:file(File, [return|Options]) of
-		{ok, Module, Warnings} ->
-			%% Compiling didn't change the beam code. Don't reload...
-			print_results([], File, [], Warnings),
-			code_reloader:reload_modules(),
-			{ok, [], Warnings};
-		{error, Errors, Warnings} ->
-			%% Compiling failed. Print the warnings and errors...
-			print_results([], File, Errors, Warnings),
-			{ok, Errors, Warnings}
+	error_logger:info_msg("now compile the files~p~n" , [Files]),
+	{ok, Compiler_options} = get_compiler_options,
+	case make:files(Files, Compiler_options) of
+		error -> error_logger:info_msg("ERROR. Now we have to send a mail, but it is not implemented yet! ~n");
+		up_to_date -> code_reloader:reload_modules()
 	end.
-	
-print_results(_Module, _SrcFile, [], []) ->
-    %% Do not print message on successful compilation;
-    %% We already get a notification when the beam is reloaded.
-    ok;
-
-print_results(_Module, SrcFile, [], Warnings) ->
-    Msg = [
-        format_errors(SrcFile, [], Warnings),
-        io_lib:format("~s:0: Recompiled with ~p warnings~n", [SrcFile, length(Warnings)])
-    ],
-    error_logger:info_msg(lists:flatten(Msg));
-
-print_results(_Module, SrcFile, Errors, Warnings) ->
-    Msg = [
-        format_errors(SrcFile, Errors, Warnings)
-    ],
-    error_logger:info_msg(lists:flatten(Msg)).
-
-
-%% @private Print error messages in a pretty and user readable way.
-format_errors(File, Errors, Warnings) ->
-    AllErrors1 = lists:sort(lists:flatten([X || {_, X} <- Errors])),
-    AllErrors2 = [{Line, "Error", Module, Description} || {Line, Module, Description} <- AllErrors1],
-    AllWarnings1 = lists:sort(lists:flatten([X || {_, X} <- Warnings])),
-    AllWarnings2 = [{Line, "Warning", Module, Description} || {Line, Module, Description} <- AllWarnings1],
-    Everything = lists:sort(AllErrors2 ++ AllWarnings2),
-    F = fun({Line, Prefix, Module, ErrorDescription}) ->
-        Msg = Module:format_error(ErrorDescription),
-        io_lib:format("~s:~p: ~s: ~s~n", [File, Line, Prefix, Msg])
-    end,
-    [F(X) || X <- Everything].
+%% --------------------------------------------------------------------
+%%% 
+%% --------------------------------------------------------------------
+change_working_dir(Project_dir) ->
+	file:set_cwd(Project_dir).
 %% --------------------------------------------------------------------
 %%% Test functions
 %% --------------------------------------------------------------------

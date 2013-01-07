@@ -4,7 +4,7 @@
 %%%
 %%% Created : 
 %%% -------------------------------------------------------------------
--module(cc_controller).
+-module(code_reloader).
 
 -behaviour(gen_server).
 -author('uaforum1@googlemail.com').
@@ -14,21 +14,24 @@
 
 %% --------------------------------------------------------------------
 %% External exports
-
+-export([reload_modules/0]).
+%% cc_timer interface which has to implemented by the timer clients
+-export([time_triggered/1]).
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
--export([start_link/0, start/0]).
+-export([start_link/0]).
 
--export([process_files/2]).
+-define(DEBUG(Var), io:format("DEBUG: ~p:~p - ~p~n~n ~p~n~n", [?MODULE, ?LINE, ??Var, Var])).
+-define(DEBUG(Var, Var1), io:format("DEBUG: ~p:~p - ~p~n~n ~p~n~n ~p~n~n", [?MODULE, ?LINE, ??Var, Var, Var1])).
+
 -record(state, {}).
--define(DEBUG(Var), io:format("DEBUG: ~p:~p - ~p~n ~p~n~n", [?MODULE, ?LINE, ??Var, Var])).
 %% ====================================================================
 %% External functions
 %% ====================================================================
-process_files(src, Files) ->
-	gen_server:cast(?MODULE, {process_files, src, Files});
-process_files(dtl, Files) ->
-	gen_server:cast(?MODULE, {process_files, dtl, Files}).
+reload_modules() ->
+	gen_server:cast(?MODULE, {reload, []}).
+time_triggered([]) ->
+	gen_server:cast(?MODULE, {time_triggered, []}).
 %% ====================================================================
 %% Server functions
 %% ====================================================================
@@ -38,8 +41,6 @@ process_files(dtl, Files) ->
 %%--------------------------------------------------------------------
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
-start() ->
-	start_link().
 %% --------------------------------------------------------------------
 %% Function: init/1
 %% Description: Initiates the server
@@ -50,6 +51,7 @@ start() ->
 %% --------------------------------------------------------------------
 init([]) ->
     {ok, #state{}}.
+
 %% --------------------------------------------------------------------
 %% Function: handle_call/3
 %% Description: Handling call messages
@@ -71,10 +73,13 @@ handle_call(_Request, _From, State) ->
 %%          {noreply, State, Timeout} |
 %%          {stop, Reason, State}            (terminate/2 is called)
 %% --------------------------------------------------------------------
-handle_cast({process_files, src, List_of_files}, State) ->
-	?DEBUG(List_of_files),
-	make(List_of_files),
-	code_reloader:reload_modules(),
+handle_cast({reload, Revision}, State) ->
+	?DEBUG("load new Modules for : ", Revision),
+	reloadmodules(),
+    {noreply, State};
+handle_cast({time_triggered, []}, State) ->
+	error_logger:info_msg("got an time triggered message ~n"),
+	reloadmodules(),
     {noreply, State}.
 %% --------------------------------------------------------------------
 %% Function: handle_info/2
@@ -85,7 +90,6 @@ handle_cast({process_files, src, List_of_files}, State) ->
 %% --------------------------------------------------------------------
 handle_info(_Info, State) ->
     {noreply, State}.
-
 %% --------------------------------------------------------------------
 %% Function: terminate/2
 %% Description: Shutdown the server
@@ -103,68 +107,77 @@ code_change(_OldVsn, State, _Extra) ->
 %% --------------------------------------------------------------------
 %%% Internal functions
 %% --------------------------------------------------------------------
-get_compiler_options() ->
-	case erlbuild:get_env(compiler_options) of
-		{ok, Value} -> Value;
-		undefined -> []
-	end.
 %% --------------------------------------------------------------------
-%% Func: make/0
+%% Func: reloadmodules/0
+%% Purpose: Wir ueberpruefen alle geladenen Module, ob sie beam Files 
+%% sind und ob sie aelter als die nicht geladenen Module sind.
+%% Diese neuen Module werden dann mittles c:l geladen.
+%% Returns: 
+%% --------------------------------------------------------------------
+reloadmodules() ->
+	[load_module(Module) || {Module, File} <- code:all_loaded(), is_beamfile(File), is_old(Module,File)].
+%% --------------------------------------------------------------------
+%% Func: 
 %% Purpose: 
 %% Returns: 
 %% --------------------------------------------------------------------
-make(Files) ->
-	?DEBUG(Files),	
-	Options = get_compiler_options(),
-	[compile(F, Options) || F <- Files].
-
-compile([], Options) ->
-	?DEBUG("nothing to do");	
-compile(File, Options) ->
+is_old(Module,File) ->
 	?DEBUG(File),
-	case compile:file(File, [return|Options]) of
-		{ok, Module, Warnings} ->
-			%% Compiling didn't change the beam code. Don't reload...
-			print_results([], File, [], Warnings),
-			code_reloader:reload_modules(),
-			{ok, [], Warnings};
-		{error, Errors, Warnings} ->
-			%% Compiling failed. Print the warnings and errors...
-			print_results([], File, Errors, Warnings),
-			{ok, Errors, Warnings}
+	loaded_time(Module) < not_yet_loaded_time(File).
+%% --------------------------------------------------------------------
+%% Func: loaded_time/1
+%% Purpose: Diese Funtion ermittelt die Zeit, wann ein Modul compiliert
+%%          wurde. 
+%% Returns: {yyyy,mm,dd,hh,mm,sec}
+%% --------------------------------------------------------------------
+loaded_time(Module) ->
+	?DEBUG(Module),
+	proplists:get_value(time, Module:module_info(compile)).
+%% --------------------------------------------------------------------
+%% Func: not_yet_load_time/1
+%% Purpose: Liest die Compile Zeit des Beam Files aus. Diese wird mittels
+%% der beam_lib ermittelt
+%% Returns: {yyyy,mm,dd,hh,mm,sec}
+%% --------------------------------------------------------------------
+not_yet_loaded_time(File) ->
+	?DEBUG(File),
+	{ok,{_,[{_,I}]}} = beam_lib:chunks(File,[compile_info]),
+	proplists:get_value(time,I).
+%% --------------------------------------------------------------------
+%% Func: s_beamfile/1
+%% Purpose: ueberprueft, ob es sich bei der Datei um ein beam File handelt.
+%% Das Eingabeformat siehht wie folgt aus:
+%% "/Users/ua/projekte/erlang/lilly/ebin/login_srv.beam" 
+%% Returns: true | false
+%% --------------------------------------------------------------------
+is_beamfile(File) ->
+	?DEBUG(File),
+	ok =:= element(1,file:read_file_info(File)) andalso ".beam" =:= filename:extension(File).
+
+%% --------------------------------------------------------------------
+%% Func: load_module
+%% Purpose: 
+%% Returns: 
+%% --------------------------------------------------------------------
+load_module(Module) ->
+	?DEBUG(Module),
+	code:purge(Module), 
+	case code:load_file(Module) of
+		{module, Loaded_Module} -> error_logger:info_msg("loaded Module : ~p~n", [Loaded_Module]),
+		run_test(Module);
+		{error, Reason} -> error_logger:info_msg("can't load Module : ~p with Reason : ~p ~n", [Module, Reason])
 	end.
-	
-print_results(_Module, _SrcFile, [], []) ->
-    %% Do not print message on successful compilation;
-    %% We already get a notification when the beam is reloaded.
-    ok;
 
-print_results(_Module, SrcFile, [], Warnings) ->
-    Msg = [
-        format_errors(SrcFile, [], Warnings),
-        io_lib:format("~s:0: Recompiled with ~p warnings~n", [SrcFile, length(Warnings)])
-    ],
-    error_logger:info_msg(lists:flatten(Msg));
+run_test(Module) ->
+	case lists:keyfind(test,1,Module:module_info(exports)) of
+		false -> [];
+		{test, 0} -> Module:test();
+		_ -> []
+	end. 
 
-print_results(_Module, SrcFile, Errors, Warnings) ->
-    Msg = [
-        format_errors(SrcFile, Errors, Warnings)
-    ],
-    error_logger:info_msg(lists:flatten(Msg)).
-
-
-%% @private Print error messages in a pretty and user readable way.
-format_errors(File, Errors, Warnings) ->
-    AllErrors1 = lists:sort(lists:flatten([X || {_, X} <- Errors])),
-    AllErrors2 = [{Line, "Error", Module, Description} || {Line, Module, Description} <- AllErrors1],
-    AllWarnings1 = lists:sort(lists:flatten([X || {_, X} <- Warnings])),
-    AllWarnings2 = [{Line, "Warning", Module, Description} || {Line, Module, Description} <- AllWarnings1],
-    Everything = lists:sort(AllErrors2 ++ AllWarnings2),
-    F = fun({Line, Prefix, Module, ErrorDescription}) ->
-        Msg = Module:format_error(ErrorDescription),
-        io_lib:format("~s:~p: ~s: ~s~n", [File, Line, Prefix, Msg])
-    end,
-    [F(X) || X <- Everything].
 %% --------------------------------------------------------------------
 %%% Test functions
 %% --------------------------------------------------------------------
+-include_lib("eunit/include/eunit.hrl").
+-ifdef(TEST).
+-endif.	

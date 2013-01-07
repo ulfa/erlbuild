@@ -1,5 +1,5 @@
 %%% -------------------------------------------------------------------
-%%% Author  : Ulf Angermann uangermann@googlemail.com
+%%% Author  : uaforum1@googlemail.com'
 %%% Description : This modules implements a kind of timer which 
 %%% sends message to the clients which are described in the erlbuild.app
 %%% file.
@@ -9,18 +9,20 @@
 -module(cc_timer).
 
 -behaviour(gen_server).
+-author('uaforum1@googlemail.com').
 %% --------------------------------------------------------------------
 %% Include files
 %% --------------------------------------------------------------------
 -include_lib("eunit/include/eunit.hrl").
--include("../include/erlbuild.hrl").
 %% --------------------------------------------------------------------
 %% External exports
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 -export([start_link/0]).
--export([start/0]).
+-export([start/0, get_timer/0]).
+
+-define(DEBUG(Var), io:format("DEBUG: ~p:~p - ~p~n~n ~p~n~n", [?MODULE, ?LINE, ??Var, Var])).
 
 -record(state, {}).
 
@@ -39,9 +41,7 @@ start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 start() ->
-	application:load(erlbuild),
 	start_link().
-
 %% --------------------------------------------------------------------
 %% Function: init/1
 %% Description: Initiates the server
@@ -49,11 +49,10 @@ start() ->
 %%          {ok, State, Timeout} |
 %%          ignore               |
 %%          {stop, Reason}
+
 %% --------------------------------------------------------------------
 init([]) ->
-	start_timer(),
-    {ok, #state{}}.
-
+    {ok, #state{}, 0}.
 %% --------------------------------------------------------------------
 %% Function: handle_call/3
 %% Description: Handling call messages
@@ -85,10 +84,16 @@ handle_cast(_Msg, State) ->
 %%          {noreply, State, Timeout} |
 %%          {stop, Reason, State}            (terminate/2 is called)
 %% --------------------------------------------------------------------
+handle_info(timeout, State) ->
+	%%?DEBUG("...Timeout"),
+	handle_info({next_run}, State);
 handle_info({next_run}, State) ->
-	{ok, List_of_clients} = ?PROPERTY(timer_clients),
+	%%?DEBUG("...Next Run"),
+	List_of_clients = get_timer_clients(),
 	send_msg_to_clients(List_of_clients),
 	start_timer(),
+    {noreply, State};
+handle_info(_Info, State) ->
     {noreply, State}.
 
 %% --------------------------------------------------------------------
@@ -111,16 +116,34 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %% --------------------------------------------------------------------
 get_timer() ->
-	{ok, Value} = application:get_env(erlbuild, timer_interval),
-	%%error_logger:info_msg("time to next run : ~p minutes~n" , [Value]),
-	Value.
+	case erlbuild:get_env(timer_interval) of
+		{ok, Value} -> Value;
+		undefined -> error_logger:warning_msg("There is noch timer_interval configured. Please, have a look at your erlbuild.app"),
+					10000
+	end.
+get_timer_clients() ->
+	case erlbuild:get_env(timer_clients) of
+		{ok, Value} -> Value;
+		undefined -> error_logger:warning_msg("There are no timer_clients configured. Please, have a look at your erlbuild.app"),
+					 []
+	end.
 start_timer() ->
 	erlang:send_after(get_timer(), self(), {next_run}).
 send_msg_to_clients(List_of_clients) ->
+	%%?DEBUG("... send_msg_to_clients"),
 	[send_msg_to_client(Client) || Client <- List_of_clients].
 send_msg_to_client(Client) ->
-	%%error_logger:info_msg("send message to ~p~n", [Client]),
+	%%?DEBUG("... send_msg_to_client"),
 	Client:time_triggered([]).
 %% --------------------------------------------------------------------
 %%% Test functions
 %% --------------------------------------------------------------------
+-include_lib("eunit/include/eunit.hrl").
+-ifdef(TEST).
+get_timer_with_configured_value_test() ->
+	application:load(erlbuild),
+	?assertEqual(2000, get_timer()).	
+get_timer_clients_with_configured_value_test() ->	
+	application:load(erlbuild),
+	?assertEqual([cc_file_poller], get_timer_clients()).	
+-endif.
