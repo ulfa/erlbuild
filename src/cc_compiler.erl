@@ -129,28 +129,28 @@ compile(src, Files) ->
 	Options = get_compiler_options(),
 	[compile(src, F, Options) || F <- Files];
 compile(dtl, Files) ->
-	%%?DEBUG(Files),	
+	%%?DEBUG(Files), 	
 	Options = get_erlydtl_options(),	
 	[compile(dtl, F, Options) || F <- Files].
 	
 compile(src, [], _Options) ->
 	?DEBUG("nothing to do");	
 compile(src, File, Options) ->
-	?DEBUG(File),
+	%%?DEBUG(File),
 	case compile:file(File, [return|Options]) of
-		{ok, _Module, Warnings} ->
-			%% Compiling didn't change the beam code. Don't reload...
+		{ok, _Module, Warnings} ->			
 			print_results([], File, [], Warnings),
 			{ok, [], Warnings};
 		{error, Errors, Warnings} ->
-			%% Compiling failed. Print the warnings and errors...
 			print_results([], File, Errors, Warnings),
 			{ok, Errors, Warnings}
 	end;
 compile(dtl, [], _Options) ->
 	?DEBUG("nothing to do");		
-compile(dtl, File, Options) ->
-	erlydtl:compile("./templates", filename:basename(File), Options).	
+compile(dtl, File, Options) ->	
+	%%?DEBUG(File),
+	%%?DEBUG(Options),
+	erlydtl_compiler:compile_dir("./templates", filename:basename(File), Options).	
 	
 print_results(_Module, _SrcFile, [], []) ->
     %% Do not print message on successful compilation;
@@ -186,3 +186,6 @@ format_errors(File, Errors, Warnings) ->
 %% --------------------------------------------------------------------
 %%% Test functions
 %% --------------------------------------------------------------------
+-include_lib("eunit/include/eunit.hrl").
+-ifdef(TEST).
+-endif.	

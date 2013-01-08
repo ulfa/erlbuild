@@ -8,7 +8,7 @@
               		{timer_clients, [cc_file_poller]},
               		{svn_dir, ""},
               		{compiler_options, [{i, "./include"}, {outdir, "./ebin"}]},
-					{erlydtl_options, [{out_dir, "./ebin"}]},
+					{erlydtl_options, [{compiler_options, []}, {out_dir, "./ebin"}]},
               		{timer_interval, 1000}
               		]},
               {modules,[

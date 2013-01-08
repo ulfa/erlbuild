@@ -129,7 +129,7 @@ get_new_files(Directory, Compiled_Regex, _State=#state{last_poll_time=Last_poll_
     ),				   
     NewFiles.	
 %% --------------------------------------------------------------------
-%% 
+%% Get all files of a give directory
 %% --------------------------------------------------------------------
 list_dir(Directory) when is_list(Directory)->
 	list_dir(file:list_dir(Directory));
