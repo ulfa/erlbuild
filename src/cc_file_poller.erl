@@ -159,7 +159,7 @@ get_regex(Regex) ->
 send_cc_controller(_Type,[]) ->
 	ok;
 send_cc_controller(Type, Files) ->
-	?DEBUG(Files),
+	%%?DEBUG(Files),
 	cc_compiler:process_files(Type, Files).
 %% --------------------------------------------------------------------
 %%% create new poll time

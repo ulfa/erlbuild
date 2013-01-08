@@ -125,11 +125,11 @@ get_erlydtl_options() ->
 %% Returns: 
 %% --------------------------------------------------------------------
 compile(src, Files) ->
-	?DEBUG(Files),	
+	%%?DEBUG(Files),	
 	Options = get_compiler_options(),
 	[compile(src, F, Options) || F <- Files];
 compile(dtl, Files) ->
-	?DEBUG(Files),	
+	%%?DEBUG(Files),	
 	Options = get_erlydtl_options(),	
 	[compile(dtl, F, Options) || F <- Files].
 	

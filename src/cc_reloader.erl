@@ -152,7 +152,7 @@ is_beamfile(File) ->
 %% Returns: 
 %% --------------------------------------------------------------------
 load_module(Module) ->
-	?DEBUG(Module),
+	%%?DEBUG(Module),
 	code:purge(Module), 
 	case code:load_file(Module) of
 		{module, Loaded_Module} -> error_logger:info_msg("loaded Module : ~p~n", [Loaded_Module]),
