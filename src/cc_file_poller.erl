@@ -142,11 +142,27 @@ list_dir({error, Reason}) ->
 %% 
 %% --------------------------------------------------------------------	
 process_src_files(State) ->
-	Files = get_new_files("./src", get_regex(".*.erl$"), State),
+	Files = get_new_files(get_src_dir(), get_regex(".*.erl$"), State),
 	send_cc_controller(src, Files).
 process_dtl_files(State) ->
-	Files = get_new_files("./templates", get_regex(".*.dtl$"), State),
+	Files = get_new_files(get_dtl_dir(), get_regex(".*.dtl$"), State),
 	send_cc_controller(dtl, Files).
+%% --------------------------------------------------------------------
+%% Get the directory where the erlang sources are stored
+%% --------------------------------------------------------------------	
+get_src_dir() ->
+	case erlbuild:get_env(src_dir) of
+		{ok, Value} -> Value;
+		undefined -> "./src"
+	end.
+%% --------------------------------------------------------------------
+%% Get the directory where the erlydtl sources are stored
+%% --------------------------------------------------------------------	
+get_dtl_dir() ->
+	case erlbuild:get_env(dtl_dir) of
+		{ok, Value} -> Value;
+		undefined -> "./templates"
+	end.
 %% --------------------------------------------------------------------
 %% 
 %% --------------------------------------------------------------------	

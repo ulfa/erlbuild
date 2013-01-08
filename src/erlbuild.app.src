@@ -7,6 +7,8 @@
               {env,[
               		{timer_clients, [cc_file_poller]},
               		{svn_dir, ""},
+					{src_dir, "./src"},
+					{dtl_dir, "./templates"},
               		{compiler_options, [{i, "./include"}, {outdir, "./ebin"}]},
 					{erlydtl_options, [{compiler_options, []}, {out_dir, "./ebin"}]},
               		{timer_interval, 1000}
