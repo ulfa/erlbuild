@@ -1,11 +1,25 @@
-# Erlbuild will be used for continous build 
+# What is erlbuild and for what is it good?
 
+erlbuild is a developer tool which reduce the cycle of comiling code, testing code and reloading code.
+Everthing the developer has to do is to save his(her) source file and erlbuild will do the rest for you.
 
+# Configuration
 
-The following processes are implmented :
+To configure erlbuild for your project, you only have to configure the dependency and start erlbuild.
 
-- cc_timer is responsible for sending time triggered events to the interface function time_triggered/1
-- cc_file_poller is resonsible for polling a directory for changes. If there are any changes then he fires an event to the cc_controller
-- cc_compiler is responsible for compiling the changes source files. After the successful compiling the compiler will send an event to the cc_reloader
-- cc_reloader is responible for loading the changes  in from a specific directory. 
+## rebar.config
+
+If you already have a rebar.config file, than insert the erlbuild dependency into the config file.
+
+<code>
+{deps, [
+  {erlbuild, ".*", {git, "git@github.com:ulfa/erlbuild.git", "HEAD"}}
+  ]}.
+</code>
+
+# ToDos
+
+Before erlbuild will compile and reload the first time, you have to compile your sources once. After 
+this, erlbuild will do the job for you.
+
 

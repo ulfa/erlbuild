@@ -127,7 +127,6 @@ is_old(Module,File) ->
 %% Returns: {yyyy,mm,dd,hh,mm,sec}
 %% --------------------------------------------------------------------
 loaded_time(Module) ->
-	%%?DEBUG(Module),
 	proplists:get_value(time, Module:module_info(compile)).
 %% --------------------------------------------------------------------
 %% Func: not_yet_load_time/1
@@ -136,7 +135,6 @@ loaded_time(Module) ->
 %% Returns: {yyyy,mm,dd,hh,mm,sec}
 %% --------------------------------------------------------------------
 not_yet_loaded_time(File) ->
-	%%?DEBUG(File),
 	{ok,{_,[{_,I}]}} = beam_lib:chunks(File,[compile_info]),
 	proplists:get_value(time,I).
 %% --------------------------------------------------------------------
@@ -147,7 +145,6 @@ not_yet_loaded_time(File) ->
 %% Returns: true | false
 %% --------------------------------------------------------------------
 is_beamfile(File) ->
-	%%?DEBUG(File),
 	ok =:= element(1,file:read_file_info(File)) andalso ".beam" =:= filename:extension(File).
 %% --------------------------------------------------------------------
 %% Func: load_module
@@ -158,7 +155,7 @@ load_module(Module) ->
 	?DEBUG(Module),
 	code:purge(Module), 
 	case code:load_file(Module) of
-		{module, Loaded_Module} -> ?DEBUG("loaded Module :", Loaded_Module),
+		{module, Loaded_Module} -> error_logger:info_msg("loaded Module : ~p~n", [Loaded_Module]),
 									run_test(Module);
 		{error, Reason} -> error_logger:info_msg("can't load Module : ~p with Reason : ~p ~n", [Module, Reason])
 	end.
