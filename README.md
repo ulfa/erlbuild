@@ -3,6 +3,11 @@
 erlbuild is a developer tool which reduce the cycle of comiling code, testing code and reloading code.
 Everthing the developer has to do is to save his(her) source file and erlbuild will do the rest for you.
 
+# Status
+
+- support of erlang source files in the src directory
+- support of erlydtl *.dtl files in the templates directory
+
 # Configuration
 
 To configure erlbuild for your project, you only have to configure the dependency and start erlbuild.
