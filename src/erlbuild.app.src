@@ -9,10 +9,10 @@
               		{svn_dir, ""},
               		{compiler_options, [{i, "./include"}, {outdir, "./ebin"}]},
 					{erlydtl_options, [{out_dir, "./ebin"}]},
-              		{timer_interval, 2000}
+              		{timer_interval, 1000}
               		]},
               {modules,[
-              			code_reloader,erlbuild,
+              			cc_reloader,erlbuild,
                         svnbootloader, cc_timer, 
-                        cc_file_poller, cc_controller
+                        cc_file_poller, cc_compiler
                         ]}]}.

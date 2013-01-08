@@ -11,7 +11,7 @@
 %% --------------------------------------------------------------------
 %% Include files
 %% --------------------------------------------------------------------
-
+-include("../include/erlbuild.hrl").
 %% --------------------------------------------------------------------
 %% External exports
 
@@ -21,7 +21,7 @@
 
 -export([process_files/2]).
 -record(state, {}).
--define(DEBUG(Var), io:format("DEBUG: ~p:~p - ~p~n ~p~n~n", [?MODULE, ?LINE, ??Var, Var])).
+
 %% ====================================================================
 %% External functions
 %% ====================================================================
@@ -73,11 +73,11 @@ handle_call(_Request, _From, State) ->
 %% --------------------------------------------------------------------
 handle_cast({process_files, src, List_of_files}, State) ->
 	compile(src, List_of_files),
-	code_reloader:reload_modules(),
+	reload_modules(),
     {noreply, State};
 handle_cast({process_files, dtl, List_of_files}, State) ->
 	compile(dtl, List_of_files),
-	code_reloader:reload_modules(),
+	reload_modules(),
     {noreply, State}.
 
 %% --------------------------------------------------------------------
@@ -107,6 +107,8 @@ code_change(_OldVsn, State, _Extra) ->
 %% --------------------------------------------------------------------
 %%% Internal functions
 %% --------------------------------------------------------------------
+reload_modules() ->
+	cc_reloader:reload_modules().	
 get_compiler_options() ->
 	case erlbuild:get_env(compiler_options) of
 		{ok, Value} -> Value;
@@ -139,7 +141,6 @@ compile(src, File, Options) ->
 		{ok, _Module, Warnings} ->
 			%% Compiling didn't change the beam code. Don't reload...
 			print_results([], File, [], Warnings),
-			code_reloader:reload_modules(),
 			{ok, [], Warnings};
 		{error, Errors, Warnings} ->
 			%% Compiling failed. Print the warnings and errors...

@@ -11,7 +11,7 @@
 %% --------------------------------------------------------------------
 %% Include files
 %% --------------------------------------------------------------------
-
+-include("../include/erlbuild.hrl").
 %% --------------------------------------------------------------------
 %% External exports
 -export([reload_modules/0]).
@@ -20,9 +20,6 @@
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 -export([start_link/0, is_not_system_module/1]).
-
--define(DEBUG(Var), io:format("DEBUG: ~p:~p - ~p~n ~p~n~n", [?MODULE, ?LINE, ??Var, Var])).
--define(DEBUG(Var, Var1), io:format("DEBUG: ~p:~p - ~p~n ~p~n ~p~n~n", [?MODULE, ?LINE, ??Var, Var, Var1])).
 
 -record(state, {}).
 %% ====================================================================
@@ -162,7 +159,7 @@ load_module(Module) ->
 	code:purge(Module), 
 	case code:load_file(Module) of
 		{module, Loaded_Module} -> ?DEBUG("loaded Module :", Loaded_Module),
-		run_test(Module);
+									run_test(Module);
 		{error, Reason} -> error_logger:info_msg("can't load Module : ~p with Reason : ~p ~n", [Module, Reason])
 	end.
 

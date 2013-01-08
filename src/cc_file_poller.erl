@@ -1,7 +1,6 @@
 %%% -------------------------------------------------------------------
 %%% Author  : Ulf uaforum1@googlemail.com
-%%% Description :
-%%%
+%%% Description :  
 %%% Created : 
 %%% -------------------------------------------------------------------
 -module(cc_file_poller).
@@ -12,6 +11,7 @@
 %% Include files
 %% --------------------------------------------------------------------
 -include_lib("kernel/include/file.hrl").
+-include("../include/erlbuild.hrl").
 %% --------------------------------------------------------------------
 %% External exports
 %% cc_timer interface which has to implemented by the timer clients
@@ -22,7 +22,7 @@
 -export([start_link/0]).
 -export([start/0]).
 
--define(DEBUG(Var), io:format("DEBUG: ~p:~p - ~p~n~n ~p~n~n", [?MODULE, ?LINE, ??Var, Var])).
+
 -record(state, {last_poll_time}).
 
 %% ====================================================================
@@ -75,7 +75,6 @@ handle_call(_Request, _From, State) ->
 %%          {stop, Reason, State}            (terminate/2 is called)
 %% --------------------------------------------------------------------
 handle_cast({time_triggered, _Args}, State) ->
-	%%?DEBUG("cc_file_poller was triggered"),
 	process_src_files(State),
 	process_dtl_files(State),	
     {noreply, #state{last_poll_time = new_poll_time(date(), time())}}.
@@ -128,7 +127,7 @@ get_new_files(Directory, Compiled_Regex, _State=#state{last_poll_time=Last_poll_
         end,				
         FilteredFiles
     ),				   
-    NewFiles.
+    NewFiles.	
 %% --------------------------------------------------------------------
 %% 
 %% --------------------------------------------------------------------
@@ -161,7 +160,7 @@ send_cc_controller(_Type,[]) ->
 	ok;
 send_cc_controller(Type, Files) ->
 	?DEBUG(Files),
-	cc_controller:process_files(Type, Files).
+	cc_compiler:process_files(Type, Files).
 %% --------------------------------------------------------------------
 %%% create new poll time
 %% --------------------------------------------------------------------

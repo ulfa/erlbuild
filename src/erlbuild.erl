@@ -12,7 +12,7 @@
 %% --------------------------------------------------------------------
 %% Include files
 %% --------------------------------------------------------------------
-
+-include("../include/erlbuild.hrl").
 %% --------------------------------------------------------------------
 %% Behavioural exports
 %% --------------------------------------------------------------------
@@ -21,23 +21,10 @@
 -export([get_env/1]).
 
 get_env(Parameter) ->
-	application:get_env(erlbuild, Parameter). 
+	application:get_env(?MODULE, Parameter). 
 %% --------------------------------------------------------------------
 %% Internal exports
 %% --------------------------------------------------------------------
-
-%% --------------------------------------------------------------------
-%% Macros
-%% --------------------------------------------------------------------
-
-%% --------------------------------------------------------------------
-%% Records
-%% --------------------------------------------------------------------
-
-%% --------------------------------------------------------------------
-%% API Functions
-%% --------------------------------------------------------------------
-
 %% ====================================================================
 %% Server functions
 %% ====================================================================
@@ -48,25 +35,25 @@ get_env(Parameter) ->
 %%          {error, Reason}
 %% --------------------------------------------------------------------
 init([]) ->
-	CodeReloader = {code_reloader,
-				  {code_reloader, start_link, []},
-				  permanent,
-				  10000,
-				  worker,
-				  [code_reloader]},
-	 CC_Timer = {cc_timer,
-				{cc_timer, start_link, []},
-				permanent,
-           	   	10000,
-				worker,
-              [cc_timer]},
-CC_Controller={cc_controller,
-         	 {cc_controller, start_link, []},
-              permanent,
-              10000,
-              worker,
-              [cc_controller]},
-CC_File_Poller={cc_file_poller,
+Cc_reloader = {cc_reloader,
+ 			  {cc_reloader, start_link, []},
+			  permanent,
+			  10000,
+			  worker,
+			  [cc_reloader]},
+Cc_timer = {cc_timer,
+			{cc_timer, start_link, []},
+			permanent,
+           	10000,
+			worker,
+            [cc_timer]},
+Cc_compiler={cc_compiler,
+         	 {cc_compiler, start_link, []},
+             permanent,
+             10000,
+             worker,
+             [cc_compiler]},
+Cc_file_poller={cc_file_poller,
          	 {cc_file_poller, start_link, []},
               permanent,
               10000,
@@ -74,10 +61,10 @@ CC_File_Poller={cc_file_poller,
               [cc_file_poller]},
 {ok, {{one_for_one, 3, 10},
 		   [
-			CodeReloader,
-			CC_Timer,
-			CC_Controller,
-			CC_File_Poller
+			Cc_reloader,
+			Cc_timer,
+			Cc_compiler,
+			Cc_file_poller
 			]}}.
 
 %% ====================================================================!

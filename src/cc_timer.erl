@@ -1,10 +1,8 @@
 %%% -------------------------------------------------------------------
 %%% Author  : uaforum1@googlemail.com'
-%%% Description : This modules implements a kind of timer which 
-%%% sends message to the clients which are described in the erlbuild.app
-%%% file.
-%%% The clients has to implement the function time_triggered/1
-%%% Created : 29.10.2010 
+%%% Description : This process is responsible for sending time triggered 
+%%% events to configured processes.
+%%% Created :  
 %%% -------------------------------------------------------------------
 -module(cc_timer).
 
@@ -14,6 +12,7 @@
 %% Include files
 %% --------------------------------------------------------------------
 -include_lib("eunit/include/eunit.hrl").
+-include("../include/erlbuild.hrl").
 %% --------------------------------------------------------------------
 %% External exports
 
@@ -21,8 +20,6 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 -export([start_link/0]).
 -export([start/0, get_timer/0]).
-
--define(DEBUG(Var), io:format("DEBUG: ~p:~p - ~p~n~n ~p~n~n", [?MODULE, ?LINE, ??Var, Var])).
 
 -record(state, {}).
 
@@ -85,10 +82,8 @@ handle_cast(_Msg, State) ->
 %%          {stop, Reason, State}            (terminate/2 is called)
 %% --------------------------------------------------------------------
 handle_info(timeout, State) ->
-	%%?DEBUG("...Timeout"),
 	handle_info({next_run}, State);
 handle_info({next_run}, State) ->
-	%%?DEBUG("...Next Run"),
 	List_of_clients = get_timer_clients(),
 	send_msg_to_clients(List_of_clients),
 	start_timer(),
@@ -142,7 +137,7 @@ send_msg_to_client(Client) ->
 -ifdef(TEST).
 get_timer_with_configured_value_test() ->
 	application:load(erlbuild),
-	?assertEqual(2000, get_timer()).	
+	?assertEqual(1000, get_timer()).	
 get_timer_clients_with_configured_value_test() ->	
 	application:load(erlbuild),
 	?assertEqual([cc_file_poller], get_timer_clients()).	
