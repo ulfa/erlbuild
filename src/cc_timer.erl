@@ -90,7 +90,6 @@ handle_info({next_run}, State) ->
     {noreply, State};
 handle_info(_Info, State) ->
     {noreply, State}.
-
 %% --------------------------------------------------------------------
 %% Function: terminate/2
 %% Description: Shutdown the server
@@ -98,7 +97,6 @@ handle_info(_Info, State) ->
 %% --------------------------------------------------------------------
 terminate(_Reason, _State) ->
     ok.
-
 %% --------------------------------------------------------------------
 %% Func: code_change/3
 %% Purpose: Convert process state when code is changed
@@ -106,7 +104,7 @@ terminate(_Reason, _State) ->
 %% --------------------------------------------------------------------
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
-
+	
 %% --------------------------------------------------------------------
 %%% Internal functions
 %% --------------------------------------------------------------------
@@ -128,7 +126,6 @@ send_msg_to_clients(List_of_clients) ->
 	%%?DEBUG("... send_msg_to_clients"),
 	[send_msg_to_client(Client) || Client <- List_of_clients].
 send_msg_to_client(Client) ->
-	%%?DEBUG("... send_msg_to_client"),
 	Client:time_triggered([]).
 %% --------------------------------------------------------------------
 %%% Test functions

@@ -22,9 +22,7 @@
 -export([start_link/0]).
 -export([start/0]).
 
-
 -record(state, {last_poll_time}).
-
 %% ====================================================================
 %% External functions
 %% ====================================================================
@@ -41,7 +39,6 @@ start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 start() ->
 	start_link().
-
 %% --------------------------------------------------------------------
 %% Function: init/1
 %% Description: Initiates the server
@@ -51,8 +48,7 @@ start() ->
 %%          {stop, Reason}
 %% --------------------------------------------------------------------
 init([]) ->
-    {ok, #state{last_poll_time = new_poll_time(date(), time())}}.
-
+    {ok, #state{last_poll_time = new_poll_time(erlang:localtime())}}.
 %% --------------------------------------------------------------------
 %% Function: handle_call/3
 %% Description: Handling call messages
@@ -66,7 +62,6 @@ init([]) ->
 handle_call(_Request, _From, State) ->
     Reply = ok,
     {reply, Reply, State}.
-
 %% --------------------------------------------------------------------
 %% Function: handle_cast/2
 %% Description: Handling cast messages
@@ -77,7 +72,7 @@ handle_call(_Request, _From, State) ->
 handle_cast({time_triggered, _Args}, State) ->
 	process_src_files(State),
 	process_dtl_files(State),	
-    {noreply, #state{last_poll_time = new_poll_time(date(), time())}}.
+    {noreply, #state{last_poll_time = new_poll_time(erlang:localtime())}}.
 %% --------------------------------------------------------------------
 %% Function: handle_info/2
 %% Description: Handling all non call/cast messages
@@ -87,7 +82,6 @@ handle_cast({time_triggered, _Args}, State) ->
 %% --------------------------------------------------------------------
 handle_info(_Info, State) ->
     {noreply, State}.
-
 %% --------------------------------------------------------------------
 %% Function: terminate/2
 %% Description: Shutdown the server
@@ -95,7 +89,6 @@ handle_info(_Info, State) ->
 %% --------------------------------------------------------------------
 terminate(_Reason, _State) ->
     ok.
-
 %% --------------------------------------------------------------------
 %% Func: code_change/3   
 %% Purpose: Convert process state when code is changed
@@ -108,8 +101,10 @@ code_change(_OldVsn, State, _Extra) ->
 %% --------------------------------------------------------------------
 %% --------------------------------------------------------------------
 %% Get all changed files for a given directory.
+%% 1. read all files of given directory
+%% 2. filter all files where the mtime < localtime
 %% --------------------------------------------------------------------
-get_new_files(Directory, Compiled_Regex, _State=#state{last_poll_time=Last_poll_time}) ->
+get_new_files(Directory, Compiled_Regex, _State=#state{last_poll_time = Last_poll_time}) ->
     Files = list_dir(Directory),
     FilteredFiles = lists:map(
         fun(X) -> filename:join([Directory, X]) end,
@@ -118,16 +113,14 @@ get_new_files(Directory, Compiled_Regex, _State=#state{last_poll_time=Last_poll_
                 re:run(Y,Compiled_Regex,[{capture,none}]) == match end,
             Files
         )
-    ),
-	
-    NewFiles = lists:filter (
+    ),	
+    lists:filter (
         fun(Filename) ->
-            {ok, FileInfo} = file:read_file_info(Filename),
-            calendar:datetime_to_gregorian_seconds(FileInfo#file_info.mtime) > Last_poll_time
+            {ok, FileInfo} = file:read_file_info(Filename),											
+            calendar:datetime_to_gregorian_seconds(FileInfo#file_info.mtime) >= Last_poll_time 
         end,				
         FilteredFiles
-    ),				   
-    NewFiles.	
+    ).	
 %% --------------------------------------------------------------------
 %% Get all files of a give directory
 %% --------------------------------------------------------------------
@@ -180,12 +173,18 @@ send_cc_controller(Type, Files) ->
 %% --------------------------------------------------------------------
 %%% create new poll time
 %% --------------------------------------------------------------------
-new_poll_time(Date, Time) ->
-	calendar:datetime_to_gregorian_seconds({Date, Time}).
+new_poll_time(DateTime) ->
+	calendar:datetime_to_gregorian_seconds(DateTime).
 %% --------------------------------------------------------------------
 %%% Test functions
 %% --------------------------------------------------------------------
+-define(NODEBUG, true).
 -include_lib("eunit/include/eunit.hrl").
 -ifdef(TEST).
-
+get_new_files_test() ->
+	Filename = "./testdir/ee.erl",
+	{ok, FI} = file:read_file_info(Filename),			
+	ok = file:write_file_info(Filename, FI#file_info{mtime={{2020, 12,31}, {23,59,59}}, ctime={{2020, 12,31}, {23,59,59}}}),
+	Files = get_new_files("./testdir", get_regex(".*.erl$"), #state{last_poll_time = calendar:datetime_to_gregorian_seconds(erlang:localtime())}),
+	?assertEqual(1, length(Files)).
 -endif.
