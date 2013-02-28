@@ -150,7 +150,7 @@ compile(dtl, [], _Options) ->
 compile(dtl, File, Options) ->	
 	%%?DEBUG(File),
 	%%?DEBUG(Options),
-	erlydtl_compiler:compile_dir("./templates", filename:basename(File), Options).	
+	erlydtl_compiler:compile(File, filename:rootname(filename:basename(File)) ++ "_dtl", Options).	
 	
 print_results(_Module, _SrcFile, [], []) ->
     %% Do not print message on successful compilation;
