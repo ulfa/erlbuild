@@ -136,10 +136,10 @@ list_dir({error, Reason}) ->
 %% --------------------------------------------------------------------	
 process_src_files(State) ->
 	Files = get_new_files(get_src_dir(), get_regex(".*.erl$"), State),
-	send_cc_controller(src, Files).
+	send_cc_compiler(src, Files).
 process_dtl_files(State) ->
 	Files = get_new_files(get_dtl_dir(), get_regex(".*.dtl$"), State),
-	send_cc_controller(dtl, Files).
+	send_cc_compiler(dtl, Files).
 %% --------------------------------------------------------------------
 %% Get the directory where the erlang sources are stored
 %% --------------------------------------------------------------------	
@@ -165,9 +165,9 @@ get_regex(Regex) ->
 %% --------------------------------------------------------------------
 %% 
 %% --------------------------------------------------------------------
-send_cc_controller(_Type,[]) ->
+send_cc_compiler(_Type,[]) ->
 	ok;
-send_cc_controller(Type, Files) ->
+send_cc_compiler(Type, Files) ->
 	%%?DEBUG(Files),
 	cc_compiler:process_files(Type, Files).
 %% --------------------------------------------------------------------
