@@ -138,10 +138,12 @@ compile(src, [], _Options) ->
 compile(src, File, Options) ->
 	%%?DEBUG(File),
 	case compile:file(File, [return|Options]) of
-		{ok, _Module, Warnings} ->			
+		{ok, _Module, Warnings} ->
+			growler:success(File),			
 			print_results([], File, [], Warnings),
 			{ok, [], Warnings};
 		{error, Errors, Warnings} ->
+			growler:error(Errors),
 			print_results([], File, Errors, Warnings),
 			{ok, Errors, Warnings}
 	end;

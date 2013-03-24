@@ -31,7 +31,7 @@ get_env(Parameter) ->
 %%          {error, Reason}
 %% --------------------------------------------------------------------
 init([]) ->
-Cc_reloader = {cc_reloader,
+	Cc_reloader = {cc_reloader,
  			  {cc_reloader, start_link, []},
 			  permanent,
 			  10000,
@@ -55,14 +55,20 @@ Cc_file_poller={cc_file_poller,
               10000,
               worker,
               [cc_file_poller]},
+Growler_sup={growler_sup,
+         	 {growler_sup, start_link, []},
+              permanent,
+              10000,
+              supervisor,
+              [growler_sup]},
 {ok, {{one_for_one, 3, 10},
 		   [
 			Cc_reloader,
 			Cc_timer,
 			Cc_compiler,
-			Cc_file_poller
+			Cc_file_poller,
+			Growler_sup
 			]}}.
-
 %% ====================================================================!
 %% External functions
 %% ====================================================================!
