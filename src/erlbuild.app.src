@@ -9,7 +9,7 @@
               		{svn_dir, ""},
 					{src_dir, "./src"},
 					{dtl_dir, "./templates"},
-              		{compiler_options, [{i, "./include"}, {outdir, "./ebin"}]},
+              		{compiler_options, [{i, "./include"}, {outdir, "./ebin"}, {parse_transform, lager_transform}]},
 					{erlydtl_options, [{compiler_options, []}, {out_dir, "./ebin"}]},
               		{timer_interval, 1000}
               		]},
