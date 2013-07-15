@@ -1,6 +1,6 @@
 {application,erlbuild,
              [{description,[]},
-              {vsn,"1"},
+              {vsn,"0.1.0"},
               {registered,[]},
               {applications,[kernel,stdlib]},
               {mod,{erlbuild,[]}},

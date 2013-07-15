@@ -129,7 +129,7 @@ list_dir(Directory) when is_list(Directory)->
 list_dir({ok, Files}) ->
 	Files;
 list_dir({error, Reason}) ->
-	error_logger:error_msg(Reason),
+	error_logger:error_msg("Please, configure the path to the sources : ~p",[Reason]),
 	[].
 %% --------------------------------------------------------------------
 %% 
